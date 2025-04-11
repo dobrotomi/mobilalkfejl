@@ -50,6 +50,18 @@ public class MainActivity extends AppCompatActivity {
         String username = usernameET.getText().toString();
         String password = passwordET.getText().toString();
 
+        if(username.isEmpty()) {
+            usernameET.setError("Email is required");
+            usernameET.requestFocus();
+            return;
+        }
+
+        if(password.isEmpty()) {
+            passwordET.setError("Password is required");
+            passwordET.requestFocus();
+            return;
+        }
+
         //Log.i(LOG_TAG, "Username: " + username + " Password: " + password);
         mAuth.signInWithEmailAndPassword(username, password)
                 .addOnCompleteListener(this, task -> {

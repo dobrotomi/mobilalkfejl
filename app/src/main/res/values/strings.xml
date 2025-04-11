@@ -10,4 +10,77 @@
     <string name="product_description">Product description</string>
     <string name="login_with_google">Login with Google</string>
     <string name="login_as_guest">Login as Guest</string>
+    <string name="kosarba">Kosárba</string>
+    <string name="item_placeholder">Leírás</string>
+    <string name="item_info_placeholder">Infó a termékről</string>
+    <string name="search">Search</string>
+    <string name="cart">Cart</string>
+    <string name="settings">Settings</string>
+    <string name="log_out">Log out</string>
+    <string name="view">View</string>
+
+    <string-array name="shopping_item_names">
+        <item>Coca Cola</item>
+        <item>Royal Vodka</item>
+        <item>Kalinka</item>
+        <item>Orange Juice</item>
+        <item>Jack Daniel\'s</item>
+        <item>Mineral Water</item>
+        <item>Ciroc Vodka</item>
+        <item>Gray Goose</item>
+        <item>Apple Juice</item>
+        <item>Wine</item>
+    </string-array>
+
+    <string-array name="shopping_item_desc">
+        <item>This is a soft drink</item>
+        <item>This is an alcohol</item>
+        <item>This is an alcohol</item>
+        <item>This is a soft drink</item>
+        <item>This is an alcohol</item>
+        <item>This is a soft drink</item>
+        <item>This is an alcohol</item>
+        <item>This is an alcohol</item>
+        <item>This is a soft drink</item>
+        <item>This is an alcohol</item>
+    </string-array>
+
+    <array name="shopping_item_rates">
+        <item>3.5</item>
+        <item>1</item>
+        <item>4</item>
+        <item>1.5</item>
+        <item>5</item>
+        <item>3</item>
+        <item>4.5</item>
+        <item>4</item>
+        <item>5</item>
+        <item>2.5</item>
+    </array>
+
+    <array name="shopping_item_images">
+        <item>@drawable/coca_cola</item>
+        <item>@drawable/royal_vodka</item>
+        <item>@drawable/kalinka</item>
+        <item>@drawable/orange_juice</item>
+        <item>@drawable/jack_daniels</item>
+        <item>@drawable/mineral_water</item>
+        <item>@drawable/ciroc</item>
+        <item>@drawable/graygoose</item>
+        <item>@drawable/applejuice</item>
+        <item>@drawable/wine</item>
+    </array>
+
+    <array name="shopping_item_price">
+        <item>100$</item>
+        <item>150$</item>
+        <item>500$</item>
+        <item>300$</item>
+        <item>180$</item>
+        <item>70$</item>
+        <item>20$</item>
+        <item>30$</item>
+        <item>15$</item>
+        <item>90$</item>
+    </array>
 </resources>
