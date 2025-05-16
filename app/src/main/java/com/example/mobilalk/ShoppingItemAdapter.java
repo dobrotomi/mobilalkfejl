@@ -122,6 +122,9 @@ public class ShoppingItemAdapter extends RecyclerView.Adapter<ShoppingItemAdapte
 
             Glide.with(context).load(currentItem.getImageResource()).into(imageView);
 
+            itemView.findViewById(R.id.add_to_cart).setOnClickListener(view -> ((ShopListActivity)context).updateAlertIcon(currentItem));
+            itemView.findViewById(R.id.delete).setOnClickListener(view -> ((ShopListActivity)context).deleteItem(currentItem));
+
         }
     }
 }

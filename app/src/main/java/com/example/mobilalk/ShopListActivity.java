@@ -3,9 +3,14 @@ package com.example.mobilalk;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -27,16 +32,26 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class ShopListActivity extends AppCompatActivity {
     private static final String LOG_TAG = ShopListActivity.class.getName();
     private static final String PREF_KEY = MainActivity.class.getPackage().toString();
+
+    private static final int NOTIFICATION_PERMISSION_CODE = 100;
     private FirebaseUser user;
 
     private FrameLayout redCircle;
     private TextView countTextView;
+
+    private List<ShoppingItem> cart = new ArrayList<>();
     private int cartItems = 0;
     private int gridNumber = 1;
 
@@ -45,7 +60,14 @@ public class ShopListActivity extends AppCompatActivity {
     private ArrayList<ShoppingItem> mItemsData;
     private ShoppingItemAdapter mAdapter;
 
+    private FirebaseFirestore mFirestore;
+
+    private CollectionReference mItems;
+
     private SharedPreferences preferences;
+
+    private NotificationHelper mNotificationHelper;
+    private AlarmManager mAlarmManager;
 
     private boolean viewRow = true;
 
@@ -74,8 +96,18 @@ public class ShopListActivity extends AppCompatActivity {
             finish();
         }
 
+        // Check notification permissions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+
+            requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_CODE);
+
+        }
 
 
+
+        mNotificationHelper = new NotificationHelper(this);
+        mAlarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         // recycle view
         mRecyclerView = findViewById(R.id.recycleView);
         // Set the Layout Manager.
@@ -86,9 +118,98 @@ public class ShopListActivity extends AppCompatActivity {
         // Initialize the adapter and set it to the RecyclerView.
         mAdapter = new ShoppingItemAdapter(this, mItemsData);
         mRecyclerView.setAdapter(mAdapter);
-        // Get the data.
-        initializeData();
+
+        // Initialize Firestore
+        mFirestore = FirebaseFirestore.getInstance();
+        mItems = mFirestore.collection("Items");
+
+        queryData();
+
     }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Notifications disabled", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void queryData() {
+        // Clear the existing data (to avoid duplication).
+        mItemsData.clear();
+
+        //mItems.whereEqualTo();
+        mItems.orderBy("cartedCount", Query.Direction.DESCENDING).limit(10).get().addOnSuccessListener(queryDocumentSnapshots -> {
+            for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                ShoppingItem item = doc.toObject(ShoppingItem.class);
+                item.setId(doc.getId());
+                mItemsData.add(item);
+            }
+            if(mItemsData.size() == 0) {
+                initializeData();
+                queryData();
+            }
+            // Notify the adapter of the change.
+            mAdapter.notifyDataSetChanged();
+        });
+
+
+    }
+
+    public void deleteItem(ShoppingItem item) {
+        DocumentReference ref = mItems.document(item._getId());
+        ref.delete()
+                .addOnSuccessListener(success -> {
+                    Log.d(LOG_TAG, "Item is successfully deleted: " + item._getId());
+                })
+                .addOnFailureListener(fail -> {
+                    Toast.makeText(this, "Item " + item._getId() + " cannot be deleted.", Toast.LENGTH_LONG).show();
+                });
+
+        queryData();
+        mNotificationHelper.cancel();
+    }
+
+    private void queryItemsByRatingRange(float minRating, float maxRating) {
+        // Clear the existing data
+        mItemsData.clear();
+
+        // Create a complex query with multiple conditions
+        mItems.whereGreaterThanOrEqualTo("ratedInfo", minRating)
+                .whereLessThanOrEqualTo("ratedInfo", maxRating)
+                .orderBy("ratedInfo", Query.Direction.DESCENDING)
+                .orderBy("name")
+                .limit(10)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        ShoppingItem item = doc.toObject(ShoppingItem.class);
+                        item.setId(doc.getId());
+                        mItemsData.add(item);
+                    }
+
+                    if (mItemsData.isEmpty()) {
+                        Toast.makeText(ShopListActivity.this,
+                                "No items found in the specified rating range",
+                                Toast.LENGTH_SHORT).show();
+                    }
+
+                    // Notify the adapter of the change
+                    mAdapter.notifyDataSetChanged();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(LOG_TAG, "Error querying by rating range", e);
+                    Toast.makeText(ShopListActivity.this,
+                            "Error loading items: " + e.getMessage(),
+                            Toast.LENGTH_SHORT).show();
+                });
+    }
+
 
     private void initializeData() {
         // Get the resources from the XML file.
@@ -102,21 +223,23 @@ public class ShopListActivity extends AppCompatActivity {
                 getResources().obtainTypedArray(R.array.shopping_item_images);
         TypedArray itemRate = getResources().obtainTypedArray(R.array.shopping_item_rates);
 
-        // Clear the existing data (to avoid duplication).
-        mItemsData.clear();
 
-        // Create the ArrayList of Sports objects with the titles and
-        // information about each sport.
+
+
         for (int i = 0; i < itemsList.length; i++) {
-            mItemsData.add(new ShoppingItem(itemsImageResources.getResourceId(i, 0),
-                     itemsInfo[i], itemsList[i], itemsPrice[i], itemRate.getFloat(i, 0)));
+            mItems.add(new ShoppingItem(
+                    itemsImageResources.getResourceId(i, 0),
+                    itemsInfo[i],
+                    itemsList[i],
+                    itemsPrice[i],
+                    itemRate.getFloat(i, 0),
+                    0));
         }
 
         // Recycle the typed array.
         itemsImageResources.recycle();
 
-        // Notify the adapter of the change.
-        mAdapter.notifyDataSetChanged();
+
     }
 
     @Override
@@ -156,6 +279,9 @@ public class ShopListActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.cart) {
             Log.d(LOG_TAG, "Cart clicked!");
+            Intent intent = new Intent(this, CartActivity.class);
+            intent.putParcelableArrayListExtra("cart", new ArrayList<>(cart));
+            startActivity(intent);
             return true;
         } else if (id == R.id.view_selector) {
             if (viewRow) {
@@ -194,7 +320,8 @@ public class ShopListActivity extends AppCompatActivity {
         return super.onPrepareOptionsMenu(menu);
     }
 
-    public void updateAlertIcon() {
+    public void updateAlertIcon(ShoppingItem item) {
+        /*
         cartItems = (cartItems + 1);
         if (0 < cartItems) {
             countTextView.setText(String.valueOf(cartItems));
@@ -203,5 +330,38 @@ public class ShopListActivity extends AppCompatActivity {
         }
 
         redCircle.setVisibility((cartItems > 0) ? VISIBLE : GONE);
+
+        mItems.document(item._getId()).update("cartedCount", item.getCartedCount() + 1)
+                .addOnFailureListener(fail -> {
+                    Toast.makeText(this, "Item " + item._getId() + " cannot be changed.", Toast.LENGTH_LONG).show();
+                });
+
+        mNotificationHelper.send(item.getName());
+        queryData();*/
+        cart.add(item);
+        cartItems = cart.size();
+        countTextView.setText(String.valueOf(cartItems));
+        redCircle.setVisibility((cartItems > 0) ? VISIBLE : GONE);
+        mItems.document(item._getId()).update("cartedCount", item.getCartedCount() + 1)
+                .addOnFailureListener(fail -> {
+                    Toast.makeText(this, "Item " + item._getId() + " cannot be changed.", Toast.LENGTH_LONG).show();
+                });
+
+        mNotificationHelper.send(item.getName());
+        queryData();
+    }
+
+    private void setmAlarmManager() {
+        long repeatInterval = 60000; // AlarmManager.INTERVAL_FIFTEEN_MINUTES;
+        long triggerTime = SystemClock.elapsedRealtime() + repeatInterval;
+
+        Intent intent = new Intent(this, AlarmReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        mAlarmManager.setInexactRepeating(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerTime,
+                repeatInterval,
+                pendingIntent);
     }
 }
